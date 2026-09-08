@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  height: 100%;
+  background-color: #0b0f14;
+}
+
+/* html5-qrcode が挿入する内部要素の見た目調整 */
+#qr-reader-region video {
+  width: 100% !important;
+  border-radius: 0.75rem;
+}
+
+#qr-reader-region {
+  border: none !important;
+}

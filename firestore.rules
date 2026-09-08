@@ -1,0 +1,32 @@
+rules_version = '2';
+
+// 前提: このアプリはFirebase Authenticationによるログインを行わない(匿名・全端末共通)構成。
+// そのため「誰でも書き込める」代わりに、書き込める内容を極限まで制限することで安全性を担保する。
+//
+// 許可すること:
+//   - 特定ハッシュ値のドキュメントを「新規作成のみ」可能 (=最初に読んだ端末が勝つ)
+//   - 作成時のフィールドは scannedAt (サーバー生成タイムスタンプ) のみ許可
+//   - 既存ドキュメントの取得(get)は許可 (重複判定・初回日時表示のため)
+//
+// 禁止すること:
+//   - 一覧取得(list) : 参加者名簿の抜き出し等を防ぐため不可
+//   - 更新(update) / 削除(delete) : 一度記録された「読み取り済み」は覆せない
+//   - scannedAt以外のフィールド追加、任意時刻での偽装(サーバー時刻と不一致な値)
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /scans/{hash} {
+      allow get: if true;
+      allow list: if false;
+
+      allow create: if request.resource.data.keys().hasOnly(['scannedAt'])
+                    && request.resource.data.scannedAt == request.time;
+
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
