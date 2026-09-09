@@ -19,6 +19,11 @@ import { auth, db } from '@/lib/firebase';
 type ScanRecord = {
   id: string; // ドキュメントID (QR文字列のSHA-256ハッシュ)
   scannedAt: Date | null;
+  rawText: string;
+  serialNumber: string;
+  ticketNumber: string;
+  surname: string;
+  givenName: string;
 };
 
 function formatDateTime(date: Date | null): string {
@@ -82,10 +87,22 @@ export default function AdminPage() {
       const q = query(collection(db, 'scans'), orderBy('scannedAt', 'asc'));
       const snap = await getDocs(q);
       const list: ScanRecord[] = snap.docs.map((d) => {
-        const data = d.data() as { scannedAt?: Timestamp };
+        const data = d.data() as {
+          scannedAt?: Timestamp;
+          rawText?: string;
+          serialNumber?: string;
+          ticketNumber?: string;
+          surname?: string;
+          givenName?: string;
+        };
         return {
           id: d.id,
           scannedAt: data.scannedAt ? data.scannedAt.toDate() : null,
+          rawText: data.rawText ?? '',
+          serialNumber: data.serialNumber ?? '',
+          ticketNumber: data.ticketNumber ?? '',
+          surname: data.surname ?? '',
+          givenName: data.givenName ?? '',
         };
       });
       setRecords(list);
@@ -105,11 +122,25 @@ export default function AdminPage() {
     const rows = records.map((r, index) => ({
       No: index + 1,
       読み取り日時: formatDateTime(r.scannedAt),
+      氏: r.surname,
+      名: r.givenName,
+      整理番号: r.serialNumber,
+      チケット番号: r.ticketNumber,
+      QRの内容: r.rawText,
       識別ID: r.id,
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(rows);
-    worksheet['!cols'] = [{ wch: 6 }, { wch: 22 }, { wch: 68 }];
+    worksheet['!cols'] = [
+      { wch: 6 },
+      { wch: 22 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 24 },
+      { wch: 40 },
+      { wch: 68 },
+    ];
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, '読み取り履歴');
@@ -132,6 +163,12 @@ export default function AdminPage() {
   if (!user) {
     return (
       <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-4">
+        <a
+          href="../"
+          className="mb-6 text-center text-xs text-gray-500 underline"
+        >
+          ← スキャン画面に戻る
+        </a>
         <h1 className="mb-6 text-center text-lg font-bold">管理画面ログイン</h1>
         <form onSubmit={handleLogin} className="flex flex-col gap-3">
           <input
@@ -167,6 +204,12 @@ export default function AdminPage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col px-4 py-6">
+      <a
+        href="../"
+        className="mb-4 inline-block text-xs text-gray-500 underline"
+      >
+        ← スキャン画面に戻る
+      </a>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-lg font-bold">読み取り履歴</h1>
         <button
@@ -202,6 +245,11 @@ export default function AdminPage() {
             <tr>
               <th className="px-3 py-2">No</th>
               <th className="px-3 py-2">読み取り日時</th>
+              <th className="px-3 py-2">氏</th>
+              <th className="px-3 py-2">名</th>
+              <th className="px-3 py-2">整理番号</th>
+              <th className="px-3 py-2">チケット番号</th>
+              <th className="px-3 py-2">QRの内容</th>
               <th className="px-3 py-2">識別ID(ハッシュ)</th>
             </tr>
           </thead>
@@ -210,6 +258,11 @@ export default function AdminPage() {
               <tr key={r.id} className="border-t border-white/10">
                 <td className="px-3 py-2">{index + 1}</td>
                 <td className="px-3 py-2">{formatDateTime(r.scannedAt)}</td>
+                <td className="px-3 py-2">{r.surname}</td>
+                <td className="px-3 py-2">{r.givenName}</td>
+                <td className="px-3 py-2">{r.serialNumber}</td>
+                <td className="px-3 py-2">{r.ticketNumber}</td>
+                <td className="max-w-xs break-all px-3 py-2">{r.rawText}</td>
                 <td className="px-3 py-2 font-mono text-xs opacity-60">
                   {r.id}
                 </td>
@@ -217,7 +270,7 @@ export default function AdminPage() {
             ))}
             {records.length === 0 && (
               <tr>
-                <td colSpan={3} className="px-3 py-6 text-center opacity-50">
+                <td colSpan={8} className="px-3 py-6 text-center opacity-50">
                   「最新の履歴を取得」を押してください
                 </td>
               </tr>

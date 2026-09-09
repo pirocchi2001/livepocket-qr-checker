@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { processScan, type ScanResult } from '@/lib/checkDuplicate';
+import { extractTicketFieldsFromVideo } from '@/lib/ocr';
 import ResultOverlay from './ResultOverlay';
 
 const READER_ELEMENT_ID = 'qr-reader-region';
@@ -26,7 +27,12 @@ type Html5QrcodeLike = {
   clear: () => void;
 };
 
-export default function QrScanner() {
+export default function QrScanner({
+  onResult,
+}: {
+  /** 判定確定のたびに呼ばれる(PC画面右側のスキャンログ表示などに利用) */
+  onResult?: (result: ScanResult) => void;
+}) {
   const [uiState, setUiState] = useState<UiState>({ kind: 'scanning' });
   const [cameraError, setCameraError] = useState<string | null>(null);
 
@@ -62,7 +68,17 @@ export default function QrScanner() {
 
     let result: ScanResult;
     try {
-      result = await processScan(decodedText);
+      result = await processScan(decodedText, async () => {
+        // カメラ映像(video要素)から氏名・整理番号・チケット番号をOCRで読み取る。
+        // 重複が既に確定している場合はこのコールバック自体が呼ばれないため無駄がない。
+        const video = document.querySelector<HTMLVideoElement>(
+          `#${READER_ELEMENT_ID} video`
+        );
+        if (!video) {
+          return { surname: '', givenName: '', serialNumber: '', ticketNumber: '' };
+        }
+        return extractTicketFieldsFromVideo(video);
+      });
     } catch (err) {
       console.error('processScan failed:', err);
       // 通信エラー等でも安全側に倒し、"違うコード"と同じ手動確認ロックにする
@@ -70,6 +86,7 @@ export default function QrScanner() {
     }
 
     setUiState({ kind: 'result', result });
+    onResult?.(result);
 
     if (result.status === 'ok') {
       // OKのみ一定時間後に自動でスキャン再開(オペレーター確認は不要)
@@ -78,7 +95,7 @@ export default function QrScanner() {
       }, OK_AUTO_RESUME_MS);
     }
     // invalid / duplicate はユーザーが「確認（次へ）」を押すまでロックされたまま
-  }, [resumeScanning]);
+  }, [resumeScanning, onResult]);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,7 +162,7 @@ export default function QrScanner() {
 
         {uiState.kind === 'processing' && (
           <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/60">
-            <p className="text-sm text-gray-200">判定中...</p>
+            <p className="text-sm text-gray-200">判定中...(画面の文字を読み取っています)</p>
           </div>
         )}
 

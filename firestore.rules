@@ -5,13 +5,17 @@ rules_version = '2';
 //
 // 許可すること:
 //   - 特定ハッシュ値のドキュメントを「新規作成のみ」可能 (=最初に読んだ端末が勝つ)
-//   - 作成時のフィールドは scannedAt (サーバー生成タイムスタンプ) のみ許可
+//   - 作成時のフィールドは以下のみ許可:
+//       scannedAt   (サーバー生成タイムスタンプ)
+//       rawText     (QRコードの中身、2000文字まで)
+//       serialNumber, ticketNumber, surname, givenName
+//                   (画面のOCR結果。読み取れなければ空文字。各100文字まで)
 //   - 既存ドキュメントの取得(get)は許可 (重複判定・初回日時表示のため)
 //
 // 禁止すること:
-//   - 一覧取得(list) : 参加者名簿の抜き出し等を防ぐため不可
+//   - 一覧取得(list) : 参加者名簿の抜き出し等を防ぐため管理者以外は不可
 //   - 更新(update) / 削除(delete) : 一度記録された「読み取り済み」は覆せない
-//   - scannedAt以外のフィールド追加、任意時刻での偽装(サーバー時刻と不一致な値)
+//   - 上記以外のフィールド追加、任意時刻での偽装(サーバー時刻と不一致な値)
 service cloud.firestore {
   match /databases/{database}/documents {
     match /scans/{hash} {
@@ -20,8 +24,20 @@ service cloud.firestore {
       // Firebase Authenticationでログインした管理者のみ許可する。
       allow list: if request.auth != null;
 
-      allow create: if request.resource.data.keys().hasOnly(['scannedAt'])
-                    && request.resource.data.scannedAt == request.time;
+      allow create: if request.resource.data.keys().hasOnly(
+                      ['scannedAt', 'rawText', 'serialNumber', 'ticketNumber', 'surname', 'givenName']
+                    )
+                    && request.resource.data.scannedAt == request.time
+                    && request.resource.data.rawText is string
+                    && request.resource.data.rawText.size() <= 2000
+                    && request.resource.data.serialNumber is string
+                    && request.resource.data.serialNumber.size() <= 100
+                    && request.resource.data.ticketNumber is string
+                    && request.resource.data.ticketNumber.size() <= 100
+                    && request.resource.data.surname is string
+                    && request.resource.data.surname.size() <= 100
+                    && request.resource.data.givenName is string
+                    && request.resource.data.givenName.size() <= 100;
 
       allow update: if false;
       allow delete: if false;
