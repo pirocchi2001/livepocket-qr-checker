@@ -19,6 +19,8 @@ const COLLECTION_NAME = 'scans';
 const COUNTER_DOC_PATH = ['meta', 'counter'] as const;
 
 export type ScanResult =
+  // "livepocketを含むか"のチェックは廃止したため、通常はここに来ない。
+  // Firestore通信エラー等、処理自体に失敗した場合のフォールバック用。
   | { status: 'invalid'; rawText: string }
   | {
       status: 'ok';
@@ -50,15 +52,6 @@ type StoredScanData = {
 };
 
 /**
- * 読み取った生文字列に "livepocket" が含まれるかを大文字小文字無視で判定する。
- * 含まれない場合、この関数はfalseを返すのみでFirestoreには一切アクセスしない
- * (無駄な読み取り/書き込み課金・通信を避けるため)。
- */
-export function isLivePocketCode(rawText: string): boolean {
-  return rawText.toLowerCase().includes('livepocket');
-}
-
-/**
  * QRコードの生文字列からSHA-256ハッシュを計算する。
  */
 export function hashCode(rawText: string): string {
@@ -67,10 +60,10 @@ export function hashCode(rawText: string): string {
 
 /**
  * QRコード読み取り後のメイン判定フロー。
- * 1. "livepocket" を含まない → Firestoreにアクセスせず invalid を返す
- * 2. 含む → SHA-256ハッシュを計算し、まず軽い読み取りで存在有無を確認する
- *    (存在しない=新規の可能性が高い場合のみ、呼び出し元のOCR処理を実行してもらう)
- * 3. Firestoreトランザクションで最終的な「新規作成(ok)」「重複(duplicate)」を確定する
+ * QRコードの内容は問わず(以前あった「livepocketを含むか」のチェックは廃止)、
+ * SHA-256ハッシュを計算し、まず軽い読み取りで存在有無を確認する
+ * (存在しない=新規の可能性が高い場合のみ、呼び出し元のOCR処理を実行してもらう)。
+ * その後、Firestoreトランザクションで最終的な「新規作成(ok)」「重複(duplicate)」を確定する。
  *
  * トランザクションを使うことで、複数端末が同時に同じQRを読み取っても
  * どちらか一方だけが「新規作成(ok)」になり、もう一方は必ず「duplicate」になることを保証する。
@@ -83,10 +76,6 @@ export async function processScan(
   rawText: string,
   captureFields?: () => Promise<ExtractedFields>
 ): Promise<ScanResult> {
-  if (!isLivePocketCode(rawText)) {
-    return { status: 'invalid', rawText };
-  }
-
   const hash = hashCode(rawText);
   const docRef = doc(db, COLLECTION_NAME, hash);
 

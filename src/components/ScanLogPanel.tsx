@@ -24,7 +24,7 @@ function formatTime(date: Date): string {
 const STATUS_LABEL: Record<ScanResult['status'], string> = {
   ok: 'OK',
   duplicate: 'NG(重複)',
-  invalid: '違うコード',
+  invalid: '読み取りエラー',
 };
 
 const STATUS_CLASS: Record<ScanResult['status'], string> = {

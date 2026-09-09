@@ -79,13 +79,13 @@ export default function ResultOverlay({
     );
   }
 
-  // invalid: livepocketの文字列を含まない、無関係なQRコード
+  // invalid: 通信エラー等、処理自体に失敗した場合のみ表示される
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 overflow-auto rounded-xl bg-warn/90 px-4 py-6 text-center">
       <span className="text-5xl font-bold">✕</span>
-      <span className="text-base font-semibold">違うコードです</span>
+      <span className="text-base font-semibold">読み取りに失敗しました</span>
       <span className="text-sm opacity-90">
-        LivePocketのQRコードではありません
+        通信状況をご確認の上、もう一度お試しください
       </span>
       <RawTextDisplay rawText={result.rawText} />
       <button

@@ -81,7 +81,7 @@ export default function QrScanner({
       });
     } catch (err) {
       console.error('processScan failed:', err);
-      // 通信エラー等でも安全側に倒し、"違うコード"と同じ手動確認ロックにする
+      // 通信エラー等でも安全側に倒し、手動確認ロックにする
       result = { status: 'invalid', rawText: decodedText };
     }
 
