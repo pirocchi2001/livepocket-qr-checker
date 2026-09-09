@@ -27,6 +27,20 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // 通過人数(全端末合計)の集計用ドキュメント。
+    // 一覧取得(list)を使わずに件数だけ公開できるよう、単一ドキュメントに分離している。
+    // 事前にFirebaseコンソール等で { totalCount: 0 } のドキュメントを
+    // 手動作成しておく必要がある(公開create不可のため)。
+    match /meta/counter {
+      allow get: if true;
+      allow list: if false;
+      // 1回のスキャン成功につき+1のみ許可。他フィールドの追加や、
+      // 1より大きい増分・減少・任意値への書き換えは拒否する。
+      allow update: if request.resource.data.keys().hasOnly(['totalCount'])
+                    && request.resource.data.totalCount == resource.data.totalCount + 1;
+      allow create, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

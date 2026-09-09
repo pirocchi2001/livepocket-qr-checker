@@ -1,4 +1,5 @@
 import QrScanner from '@/components/QrScanner';
+import PassCounter from '@/components/PassCounter';
 
 export default function Home() {
   return (
@@ -6,6 +7,7 @@ export default function Home() {
       <h1 className="mb-4 text-center text-lg font-bold tracking-wide">
         LivePocket QR重複チェック
       </h1>
+      <PassCounter />
       <QrScanner />
       <a
         href="./admin/"

@@ -1,9 +1,20 @@
-import { doc, runTransaction, serverTimestamp, Timestamp } from 'firebase/firestore';
+import {
+  doc,
+  runTransaction,
+  serverTimestamp,
+  Timestamp,
+  increment,
+  onSnapshot,
+} from 'firebase/firestore';
 import SHA256 from 'crypto-js/sha256';
 import { db } from './firebase';
 
 // Firestoreコレクション名。ドキュメントIDはQR文字列のSHA-256ハッシュ値。
 const COLLECTION_NAME = 'scans';
+
+// 通過人数(全端末合計)を保持する単一ドキュメント。
+// 一覧取得(list)を使わずに済むよう、件数だけを別ドキュメントで集計する。
+const COUNTER_DOC_PATH = ['meta', 'counter'] as const;
 
 export type ScanResult =
   | { status: 'invalid'; rawText: string }
@@ -57,6 +68,11 @@ export async function processScan(rawText: string): Promise<ScanResult> {
     transaction.set(docRef, {
       scannedAt: serverTimestamp(),
     });
+    // 通過人数を+1。ドキュメントは事前にFirebaseコンソール等で
+    // { totalCount: 0 } として作成しておく必要がある(セキュリティルール上、公開create不可のため)。
+    transaction.update(doc(db, ...COUNTER_DOC_PATH), {
+      totalCount: increment(1),
+    });
     return { status: 'ok' as const, firstScannedAt: null };
   });
 
@@ -70,4 +86,27 @@ export async function processScan(rawText: string): Promise<ScanResult> {
   }
 
   return { status: 'ok', rawText, hash };
+}
+
+/**
+ * 通過人数(全端末合計)をリアルタイム購読する。
+ * meta/counter ドキュメントの totalCount フィールドを監視し、
+ * 変化があるたびに callback を呼び出す。
+ * 戻り値の関数を呼ぶと購読を解除できる。
+ */
+export function subscribeToPassCount(
+  callback: (count: number | null) => void
+): () => void {
+  const ref = doc(db, ...COUNTER_DOC_PATH);
+  return onSnapshot(
+    ref,
+    (snap) => {
+      const data = snap.data() as { totalCount?: number } | undefined;
+      callback(typeof data?.totalCount === 'number' ? data.totalCount : 0);
+    },
+    (err) => {
+      console.error('subscribeToPassCount failed:', err);
+      callback(null);
+    }
+  );
 }
