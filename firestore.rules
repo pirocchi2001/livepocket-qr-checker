@@ -16,7 +16,9 @@ service cloud.firestore {
   match /databases/{database}/documents {
     match /scans/{hash} {
       allow get: if true;
-      allow list: if false;
+      // 一覧取得(list)は管理画面からのExcel出力用。
+      // Firebase Authenticationでログインした管理者のみ許可する。
+      allow list: if request.auth != null;
 
       allow create: if request.resource.data.keys().hasOnly(['scannedAt'])
                     && request.resource.data.scannedAt == request.time;

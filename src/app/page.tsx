@@ -7,6 +7,12 @@ export default function Home() {
         LivePocket QR重複チェック
       </h1>
       <QrScanner />
+      <a
+        href="./admin/"
+        className="mt-6 text-center text-xs text-gray-500 underline"
+      >
+        管理画面(読み取り履歴)
+      </a>
     </main>
   );
 }
