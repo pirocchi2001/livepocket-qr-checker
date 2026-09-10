@@ -83,23 +83,37 @@ function useSharedOkEntries(): DisplayEntry[] {
 
 export default function ScanLogPanel({
   localEntries,
+  clearedAt,
+  onClear,
 }: {
   /** この端末での重複/読み取りエラーの一時的な表示分 */
   localEntries: LocalLogEntry[];
+  /** この日時より前のスキャンは表示しない(「表示をクリア」した基準時刻) */
+  clearedAt: Date | null;
+  onClear: () => void;
 }) {
   const sharedEntries = useSharedOkEntries();
 
   const entries: DisplayEntry[] = [...sharedEntries, ...localEntries]
+    .filter((e) => !clearedAt || e.time > clearedAt)
     .sort((a, b) => b.time.getTime() - a.time.getTime())
     .slice(0, MAX_SHARED_ENTRIES);
 
   return (
     <div className="flex h-full flex-col rounded-xl border border-white/10">
-      <div className="border-b border-white/10 px-4 py-3">
-        <h2 className="text-sm font-bold">スキャンログ</h2>
-        <p className="text-xs text-gray-500">
-          OK分は全端末で共有・保存されます(重複/エラーはこの端末のみの一時表示)
-        </p>
+      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+        <div>
+          <h2 className="text-sm font-bold">スキャンログ</h2>
+          <p className="text-xs text-gray-500">
+            OK分は全端末で共有・保存されます(重複/エラーはこの端末のみの一時表示)
+          </p>
+        </div>
+        <button
+          onClick={onClear}
+          className="shrink-0 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-bold text-gray-300"
+        >
+          表示をクリア
+        </button>
       </div>
       <div className="flex-1 overflow-auto">
         {entries.length === 0 ? (

@@ -21,6 +21,7 @@ function detectIsMobile(): boolean {
 export default function ScanScreen() {
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
   const [localLog, setLocalLog] = useState<LocalLogEntry[]>([]);
+  const [clearedAt, setClearedAt] = useState<Date | null>(null);
 
   useEffect(() => {
     setIsMobile(detectIsMobile());
@@ -41,6 +42,12 @@ export default function ScanScreen() {
         ...prev,
       ].slice(0, MAX_LOCAL_LOG_ENTRIES)
     );
+  }, []);
+
+  // ログ表示のクリア(Firestore上のデータは消さず、この画面上の表示だけを空にする)
+  const handleClearLog = useCallback(() => {
+    setClearedAt(new Date());
+    setLocalLog([]);
   }, []);
 
   // 端末種別を判定するまでは何も出し分けない(ちらつき防止)
@@ -85,7 +92,11 @@ export default function ScanScreen() {
 
       <div className="mt-4 grid flex-1 grid-cols-[420px_1fr] gap-6">
         <QrScanner onResult={handleResult} />
-        <ScanLogPanel localEntries={localLog} />
+        <ScanLogPanel
+          localEntries={localLog}
+          clearedAt={clearedAt}
+          onClear={handleClearLog}
+        />
       </div>
     </main>
   );

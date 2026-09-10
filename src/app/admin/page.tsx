@@ -207,27 +207,40 @@ export default function AdminPage() {
         >
           Excelでダウンロード ({records.length}件)
         </button>
+        <button
+          onClick={() => setRecords([])}
+          disabled={records.length === 0}
+          className="rounded-lg bg-white/10 px-4 py-2 text-sm font-bold text-gray-300 disabled:opacity-50"
+        >
+          表示をクリア
+        </button>
       </div>
+
+      <p className="mb-4 text-xs text-gray-500">
+        「表示をクリア」は画面上の一覧を空にするだけで、Firestore上のデータ(重複チェックの記録)は削除されません。
+      </p>
 
       {loadError && <p className="mb-4 text-sm text-red-400">{loadError}</p>}
 
-      <div className="overflow-auto rounded-lg border border-white/10">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto rounded-lg border border-white/10">
+        <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="bg-white/5">
             <tr>
-              <th className="px-3 py-2">No</th>
-              <th className="px-3 py-2">読み取り日時</th>
-              <th className="px-3 py-2">QRの内容</th>
-              <th className="px-3 py-2">識別ID(ハッシュ)</th>
+              <th className="whitespace-nowrap px-3 py-2">No</th>
+              <th className="whitespace-nowrap px-3 py-2">読み取り日時</th>
+              <th className="whitespace-nowrap px-3 py-2">QRの内容</th>
+              <th className="whitespace-nowrap px-3 py-2">識別ID(ハッシュ)</th>
             </tr>
           </thead>
           <tbody>
             {records.map((r, index) => (
               <tr key={r.id} className="border-t border-white/10">
-                <td className="px-3 py-2">{index + 1}</td>
-                <td className="px-3 py-2">{formatDateTime(r.scannedAt)}</td>
-                <td className="max-w-xs break-all px-3 py-2">{r.rawText}</td>
-                <td className="px-3 py-2 font-mono text-xs opacity-60">
+                <td className="whitespace-nowrap px-3 py-2">{index + 1}</td>
+                <td className="whitespace-nowrap px-3 py-2">
+                  {formatDateTime(r.scannedAt)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2">{r.rawText}</td>
+                <td className="whitespace-nowrap px-3 py-2 font-mono text-xs opacity-60">
                   {r.id}
                 </td>
               </tr>
