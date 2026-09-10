@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { processScan, type ScanResult } from '@/lib/checkDuplicate';
-import { extractTicketFieldsFromVideo, warmUpOcrWorkers } from '@/lib/ocr';
 import ResultOverlay from './ResultOverlay';
 
 const READER_ELEMENT_ID = 'qr-reader-region';
@@ -68,17 +67,7 @@ export default function QrScanner({
 
     let result: ScanResult;
     try {
-      result = await processScan(decodedText, async () => {
-        // カメラ映像(video要素)から氏名・整理番号・チケット番号をOCRで読み取る。
-        // 重複が既に確定している場合はこのコールバック自体が呼ばれないため無駄がない。
-        const video = document.querySelector<HTMLVideoElement>(
-          `#${READER_ELEMENT_ID} video`
-        );
-        if (!video) {
-          return { surname: '', givenName: '', serialNumber: '', ticketNumber: '' };
-        }
-        return extractTicketFieldsFromVideo(video);
-      });
+      result = await processScan(decodedText);
     } catch (err) {
       console.error('processScan failed:', err);
       // 通信エラー等でも安全側に倒し、手動確認ロックにする
@@ -110,10 +99,6 @@ export default function QrScanner({
         verbose: false,
       }) as unknown as Html5QrcodeLike;
       html5QrCodeRef.current = instance;
-
-      // カメラ起動と同時に、OCRエンジン(英数字用・日本語用)の読み込みも裏で開始しておく。
-      // こうしておくと、実際に最初のQRを読んだタイミングでの待ち時間が発生しない。
-      warmUpOcrWorkers();
 
       try {
         await instance.start(
@@ -166,7 +151,7 @@ export default function QrScanner({
 
         {uiState.kind === 'processing' && (
           <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/60">
-            <p className="text-sm text-gray-200">判定中...(画面の文字を読み取っています)</p>
+            <p className="text-sm text-gray-200">判定中...</p>
           </div>
         )}
 
