@@ -34,11 +34,6 @@ export default function ScanScreen() {
           rawText: result.rawText,
           time: new Date(),
           status: result.status,
-          // 'invalid'にはこれらのフィールドが無いため、存在する場合のみ格納する
-          serialNumber: 'serialNumber' in result ? result.serialNumber : '',
-          ticketNumber: 'ticketNumber' in result ? result.ticketNumber : '',
-          surname: 'surname' in result ? result.surname : '',
-          givenName: 'givenName' in result ? result.givenName : '',
         },
         ...prev,
       ].slice(0, MAX_LOG_ENTRIES)
