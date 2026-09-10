@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import QrScanner from './QrScanner';
 import PassCounter from './PassCounter';
-import ScanLogPanel, { type LogEntry } from './ScanLogPanel';
+import ScanLogPanel, { type LocalLogEntry } from './ScanLogPanel';
 import type { ScanResult } from '@/lib/checkDuplicate';
 
-const MAX_LOG_ENTRIES = 200;
+const MAX_LOCAL_LOG_ENTRIES = 200;
 
 /**
  * User-Agentからスマートフォンかどうかを簡易判定する。
@@ -20,28 +20,26 @@ function detectIsMobile(): boolean {
 
 export default function ScanScreen() {
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
-  const [log, setLog] = useState<LogEntry[]>([]);
+  const [localLog, setLocalLog] = useState<LocalLogEntry[]>([]);
 
   useEffect(() => {
     setIsMobile(detectIsMobile());
   }, []);
 
   const handleResult = useCallback((result: ScanResult) => {
-    setLog((prev) =>
+    // 'ok'(通過)はFirestoreに保存され、全端末で共有されるログ側に表示されるため、
+    // ここでは重複/読み取りエラーのみをこの端末のローカル表示として記録する。
+    if (result.status === 'ok') return;
+    setLocalLog((prev) =>
       [
         {
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           rawText: result.rawText,
           time: new Date(),
           status: result.status,
-          // 'invalid'にはこれらのフィールドが無いため、存在する場合のみ格納する
-          serialNumber: 'serialNumber' in result ? result.serialNumber : '',
-          ticketNumber: 'ticketNumber' in result ? result.ticketNumber : '',
-          surname: 'surname' in result ? result.surname : '',
-          givenName: 'givenName' in result ? result.givenName : '',
         },
         ...prev,
-      ].slice(0, MAX_LOG_ENTRIES)
+      ].slice(0, MAX_LOCAL_LOG_ENTRIES)
     );
   }, []);
 
@@ -73,7 +71,7 @@ export default function ScanScreen() {
     );
   }
 
-  // PC: 左にカメラ、右にこのセッションでのスキャンログを表示
+  // PC: 左にカメラ、右にスキャンログ(OK分は全端末共有・保存、重複/エラーはこの端末のみ)を表示
   return (
     <main className="mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-6">
       <div className="mb-4 flex items-center justify-between">
@@ -87,7 +85,7 @@ export default function ScanScreen() {
 
       <div className="mt-4 grid flex-1 grid-cols-[420px_1fr] gap-6">
         <QrScanner onResult={handleResult} />
-        <ScanLogPanel entries={log} />
+        <ScanLogPanel localEntries={localLog} />
       </div>
     </main>
   );

@@ -5,39 +5,28 @@ rules_version = '2';
 //
 // 許可すること:
 //   - 特定ハッシュ値のドキュメントを「新規作成のみ」可能 (=最初に読んだ端末が勝つ)
-//   - 作成時のフィールドは以下のみ許可:
-//       scannedAt   (サーバー生成タイムスタンプ)
-//       rawText     (QRコードの中身、2000文字まで)
-//       serialNumber, ticketNumber, surname, givenName
-//                   (画面のOCR結果。読み取れなければ空文字。各100文字まで)
+//   - 作成時のフィールドは scannedAt (サーバー生成タイムスタンプ) と
+//     rawText (QRコードの中身、2000文字まで) のみ許可
 //   - 既存ドキュメントの取得(get)は許可 (重複判定・初回日時表示のため)
 //
 // 禁止すること:
-//   - 一覧取得(list) : 参加者名簿の抜き出し等を防ぐため管理者以外は不可
+//   - 一覧取得(list) : 認証なしの場合は直近300件までに制限(全件抜き取りを防ぐため)
 //   - 更新(update) / 削除(delete) : 一度記録された「読み取り済み」は覆せない
-//   - 上記以外のフィールド追加、任意時刻での偽装(サーバー時刻と不一致な値)
+//   - scannedAt/rawText以外のフィールド追加、任意時刻での偽装(サーバー時刻と不一致な値)
 service cloud.firestore {
   match /databases/{database}/documents {
     match /scans/{hash} {
       allow get: if true;
-      // 一覧取得(list)は管理画面からのExcel出力用。
-      // Firebase Authenticationでログインした管理者のみ許可する。
-      allow list: if request.auth != null;
+      // 一覧取得(list): 管理画面(認証済み)は無制限。
+      // PC画面のスキャンログ表示など認証なしのアクセスは、
+      // 1回のクエリで最大300件までに制限し、全件を一気に抜き取れないようにする。
+      allow list: if request.auth != null
+                  || (request.query.limit != null && request.query.limit <= 300);
 
-      allow create: if request.resource.data.keys().hasOnly(
-                      ['scannedAt', 'rawText', 'serialNumber', 'ticketNumber', 'surname', 'givenName']
-                    )
+      allow create: if request.resource.data.keys().hasOnly(['scannedAt', 'rawText'])
                     && request.resource.data.scannedAt == request.time
                     && request.resource.data.rawText is string
-                    && request.resource.data.rawText.size() <= 2000
-                    && request.resource.data.serialNumber is string
-                    && request.resource.data.serialNumber.size() <= 100
-                    && request.resource.data.ticketNumber is string
-                    && request.resource.data.ticketNumber.size() <= 100
-                    && request.resource.data.surname is string
-                    && request.resource.data.surname.size() <= 100
-                    && request.resource.data.givenName is string
-                    && request.resource.data.givenName.size() <= 100;
+                    && request.resource.data.rawText.size() <= 2000;
 
       allow update: if false;
       allow delete: if false;

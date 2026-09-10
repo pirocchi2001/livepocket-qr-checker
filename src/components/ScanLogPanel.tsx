@@ -1,17 +1,27 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { collection, limit, onSnapshot, orderBy, query, Timestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import type { ScanResult } from '@/lib/checkDuplicate';
 
-export type LogEntry = {
+// この端末で今まさに起きた重複/読み取りエラーの表示用(Firestoreには保存されないため、
+// 他端末とは共有されない・ページ再読み込みで消える一時的なもの)
+export type LocalLogEntry = {
+  id: string;
+  rawText: string;
+  time: Date;
+  status: 'duplicate' | 'invalid';
+};
+
+type DisplayEntry = {
   id: string;
   rawText: string;
   time: Date;
   status: ScanResult['status'];
-  serialNumber: string;
-  ticketNumber: string;
-  surname: string;
-  givenName: string;
 };
+
+const MAX_SHARED_ENTRIES = 300;
 
 function formatTime(date: Date): string {
   return date.toLocaleTimeString('ja-JP', {
@@ -33,11 +43,63 @@ const STATUS_CLASS: Record<ScanResult['status'], string> = {
   invalid: 'bg-warn/20 text-amber-300',
 };
 
-export default function ScanLogPanel({ entries }: { entries: LogEntry[] }) {
+/**
+ * 通過済み(OK)の履歴だけはFirestoreに保存されているため、
+ * ここをリアルタイム購読することで「全端末共有・保存され続ける」ログにする。
+ * (重複/読み取りエラーはFirestoreに保存しない設計のため、こちらは各端末のローカル表示のみ)
+ */
+function useSharedOkEntries(): DisplayEntry[] {
+  const [entries, setEntries] = useState<DisplayEntry[]>([]);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'scans'),
+      orderBy('scannedAt', 'desc'),
+      limit(MAX_SHARED_ENTRIES)
+    );
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        const list: DisplayEntry[] = snap.docs.map((d) => {
+          const data = d.data() as { scannedAt?: Timestamp; rawText?: string };
+          return {
+            id: d.id,
+            rawText: data.rawText ?? '',
+            time: data.scannedAt ? data.scannedAt.toDate() : new Date(0),
+            status: 'ok',
+          };
+        });
+        setEntries(list);
+      },
+      (err) => {
+        console.error('scan log subscription failed:', err);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  return entries;
+}
+
+export default function ScanLogPanel({
+  localEntries,
+}: {
+  /** この端末での重複/読み取りエラーの一時的な表示分 */
+  localEntries: LocalLogEntry[];
+}) {
+  const sharedEntries = useSharedOkEntries();
+
+  const entries: DisplayEntry[] = [...sharedEntries, ...localEntries]
+    .sort((a, b) => b.time.getTime() - a.time.getTime())
+    .slice(0, MAX_SHARED_ENTRIES);
+
   return (
     <div className="flex h-full flex-col rounded-xl border border-white/10">
       <div className="border-b border-white/10 px-4 py-3">
-        <h2 className="text-sm font-bold">スキャンログ(このセッションのみ)</h2>
+        <h2 className="text-sm font-bold">スキャンログ</h2>
+        <p className="text-xs text-gray-500">
+          OK分は全端末で共有・保存されます(重複/エラーはこの端末のみの一時表示)
+        </p>
       </div>
       <div className="flex-1 overflow-auto">
         {entries.length === 0 ? (
@@ -50,46 +112,27 @@ export default function ScanLogPanel({ entries }: { entries: LogEntry[] }) {
               <tr className="text-xs text-gray-400">
                 <th className="px-3 py-2 font-normal">時刻</th>
                 <th className="px-3 py-2 font-normal">状態</th>
-                <th className="px-3 py-2 font-normal">氏名</th>
-                <th className="px-3 py-2 font-normal">整理番号</th>
-                <th className="px-3 py-2 font-normal">チケット番号</th>
                 <th className="px-3 py-2 font-normal">QRの内容</th>
               </tr>
             </thead>
             <tbody>
-              {entries.map((e) => {
-                // 重複(NG)の場合は個人情報保護のため氏名を表示しない
-                const fullName =
-                  e.status === 'duplicate'
-                    ? ''
-                    : [e.surname, e.givenName].filter(Boolean).join(' ');
-                return (
-                  <tr key={e.id} className="border-t border-white/5">
-                    <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">
-                      {formatTime(e.time)}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2">
-                      <span
-                        className={`rounded px-2 py-0.5 text-xs font-bold ${STATUS_CLASS[e.status]}`}
-                      >
-                        {STATUS_LABEL[e.status]}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 text-xs">
-                      {fullName}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 text-xs">
-                      {e.serialNumber}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 text-xs">
-                      {e.ticketNumber}
-                    </td>
-                    <td className="break-all px-3 py-2 text-xs opacity-80">
-                      {e.rawText}
-                    </td>
-                  </tr>
-                );
-              })}
+              {entries.map((e) => (
+                <tr key={e.id} className="border-t border-white/5">
+                  <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">
+                    {formatTime(e.time)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2">
+                    <span
+                      className={`rounded px-2 py-0.5 text-xs font-bold ${STATUS_CLASS[e.status]}`}
+                    >
+                      {STATUS_LABEL[e.status]}
+                    </span>
+                  </td>
+                  <td className="break-all px-3 py-2 text-xs opacity-80">
+                    {e.rawText}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}

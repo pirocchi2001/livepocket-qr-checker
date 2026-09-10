@@ -20,10 +20,6 @@ type ScanRecord = {
   id: string; // ドキュメントID (QR文字列のSHA-256ハッシュ)
   scannedAt: Date | null;
   rawText: string;
-  serialNumber: string;
-  ticketNumber: string;
-  surname: string;
-  givenName: string;
 };
 
 function formatDateTime(date: Date | null): string {
@@ -87,22 +83,11 @@ export default function AdminPage() {
       const q = query(collection(db, 'scans'), orderBy('scannedAt', 'asc'));
       const snap = await getDocs(q);
       const list: ScanRecord[] = snap.docs.map((d) => {
-        const data = d.data() as {
-          scannedAt?: Timestamp;
-          rawText?: string;
-          serialNumber?: string;
-          ticketNumber?: string;
-          surname?: string;
-          givenName?: string;
-        };
+        const data = d.data() as { scannedAt?: Timestamp; rawText?: string };
         return {
           id: d.id,
           scannedAt: data.scannedAt ? data.scannedAt.toDate() : null,
           rawText: data.rawText ?? '',
-          serialNumber: data.serialNumber ?? '',
-          ticketNumber: data.ticketNumber ?? '',
-          surname: data.surname ?? '',
-          givenName: data.givenName ?? '',
         };
       });
       setRecords(list);
@@ -122,25 +107,12 @@ export default function AdminPage() {
     const rows = records.map((r, index) => ({
       No: index + 1,
       読み取り日時: formatDateTime(r.scannedAt),
-      氏: r.surname,
-      名: r.givenName,
-      整理番号: r.serialNumber,
-      チケット番号: r.ticketNumber,
       QRの内容: r.rawText,
       識別ID: r.id,
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(rows);
-    worksheet['!cols'] = [
-      { wch: 6 },
-      { wch: 22 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 14 },
-      { wch: 24 },
-      { wch: 40 },
-      { wch: 68 },
-    ];
+    worksheet['!cols'] = [{ wch: 6 }, { wch: 22 }, { wch: 40 }, { wch: 68 }];
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, '読み取り履歴');
@@ -245,10 +217,6 @@ export default function AdminPage() {
             <tr>
               <th className="px-3 py-2">No</th>
               <th className="px-3 py-2">読み取り日時</th>
-              <th className="px-3 py-2">氏</th>
-              <th className="px-3 py-2">名</th>
-              <th className="px-3 py-2">整理番号</th>
-              <th className="px-3 py-2">チケット番号</th>
               <th className="px-3 py-2">QRの内容</th>
               <th className="px-3 py-2">識別ID(ハッシュ)</th>
             </tr>
@@ -258,10 +226,6 @@ export default function AdminPage() {
               <tr key={r.id} className="border-t border-white/10">
                 <td className="px-3 py-2">{index + 1}</td>
                 <td className="px-3 py-2">{formatDateTime(r.scannedAt)}</td>
-                <td className="px-3 py-2">{r.surname}</td>
-                <td className="px-3 py-2">{r.givenName}</td>
-                <td className="px-3 py-2">{r.serialNumber}</td>
-                <td className="px-3 py-2">{r.ticketNumber}</td>
                 <td className="max-w-xs break-all px-3 py-2">{r.rawText}</td>
                 <td className="px-3 py-2 font-mono text-xs opacity-60">
                   {r.id}
@@ -270,7 +234,7 @@ export default function AdminPage() {
             ))}
             {records.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-3 py-6 text-center opacity-50">
+                <td colSpan={4} className="px-3 py-6 text-center opacity-50">
                   「最新の履歴を取得」を押してください
                 </td>
               </tr>
