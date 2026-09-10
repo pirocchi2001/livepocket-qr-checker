@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { processScan, type ScanResult } from '@/lib/checkDuplicate';
-import { extractTicketFieldsFromVideo } from '@/lib/ocr';
+import { extractTicketFieldsFromVideo, warmUpOcrWorkers } from '@/lib/ocr';
 import ResultOverlay from './ResultOverlay';
 
 const READER_ELEMENT_ID = 'qr-reader-region';
@@ -110,6 +110,10 @@ export default function QrScanner({
         verbose: false,
       }) as unknown as Html5QrcodeLike;
       html5QrCodeRef.current = instance;
+
+      // カメラ起動と同時に、OCRエンジン(英数字用・日本語用)の読み込みも裏で開始しておく。
+      // こうしておくと、実際に最初のQRを読んだタイミングでの待ち時間が発生しない。
+      warmUpOcrWorkers();
 
       try {
         await instance.start(
