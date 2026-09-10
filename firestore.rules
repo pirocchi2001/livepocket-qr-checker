@@ -11,7 +11,8 @@ rules_version = '2';
 //
 // 禁止すること:
 //   - 一覧取得(list) : 認証なしの場合は直近300件までに制限(全件抜き取りを防ぐため)
-//   - 更新(update) / 削除(delete) : 一度記録された「読み取り済み」は覆せない
+//   - 更新(update) : 一度記録された「読み取り済み」を書き換えることはできない(管理者含む)
+//   - 削除(delete) : 管理者(認証済み)による「全リセット」機能のみ許可
 //   - scannedAt/rawText以外のフィールド追加、任意時刻での偽装(サーバー時刻と不一致な値)
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -29,7 +30,8 @@ service cloud.firestore {
                     && request.resource.data.rawText.size() <= 2000;
 
       allow update: if false;
-      allow delete: if false;
+      // 管理者(認証済み)による全リセット機能でのみ削除を許可する。
+      allow delete: if request.auth != null;
     }
 
     // 通過人数(全端末合計)の集計用ドキュメント。
@@ -39,10 +41,11 @@ service cloud.firestore {
     match /meta/counter {
       allow get: if true;
       allow list: if false;
-      // 1回のスキャン成功につき+1のみ許可。他フィールドの追加や、
-      // 1より大きい増分・減少・任意値への書き換えは拒否する。
-      allow update: if request.resource.data.keys().hasOnly(['totalCount'])
-                    && request.resource.data.totalCount == resource.data.totalCount + 1;
+      // 通常のスキャン端末(未認証)は1回のスキャン成功につき+1のみ許可。
+      // 管理者(認証済み)は「全リセット」機能のために任意の値への書き換えを許可する。
+      allow update: if request.auth != null
+                    || (request.resource.data.keys().hasOnly(['totalCount'])
+                        && request.resource.data.totalCount == resource.data.totalCount + 1);
       allow create, delete: if false;
     }
 

@@ -9,10 +9,13 @@ import {
 } from 'firebase/auth';
 import {
   collection,
+  doc,
   getDocs,
   orderBy,
   query,
+  setDoc,
   Timestamp,
+  writeBatch,
 } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
@@ -45,6 +48,10 @@ export default function AdminPage() {
   const [records, setRecords] = useState<ScanRecord[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -98,6 +105,35 @@ export default function AdminPage() {
       );
     } finally {
       setLoadingRecords(false);
+    }
+  }, []);
+
+  /**
+   * 読み取り履歴(scansコレクション全件)と通過人数カウンターを完全にリセットする。
+   * テスト運用から本番運用に切り替える際などに使用する、管理者専用の破壊的操作。
+   * 500件ずつバッチ削除する(Firestoreの1バッチあたりの書き込み上限のため)。
+   */
+  const handleFullReset = useCallback(async () => {
+    setResetting(true);
+    setResetError(null);
+    try {
+      const snap = await getDocs(collection(db, 'scans'));
+      const docs = snap.docs;
+      for (let i = 0; i < docs.length; i += 500) {
+        const batch = writeBatch(db);
+        docs.slice(i, i + 500).forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
+      await setDoc(doc(db, 'meta', 'counter'), { totalCount: 0 });
+      setRecords([]);
+      setConfirmingReset(false);
+    } catch (err) {
+      console.error(err);
+      setResetError(
+        'リセットに失敗しました。通信状況をご確認の上、もう一度お試しください。'
+      );
+    } finally {
+      setResetting(false);
     }
   }, []);
 
@@ -221,6 +257,52 @@ export default function AdminPage() {
       </p>
 
       {loadError && <p className="mb-4 text-sm text-red-400">{loadError}</p>}
+
+      <div className="mb-6 rounded-lg border border-ng/40 p-4">
+        <h2 className="mb-1 text-sm font-bold text-red-300">
+          全リセット(テスト運用 → 本番運用の切り替え時など)
+        </h2>
+        <p className="mb-3 text-xs text-gray-400">
+          読み取り履歴(重複チェックの記録)と通過人数カウンターを完全に削除します。この操作は取り消せません。
+        </p>
+
+        {!confirmingReset ? (
+          <button
+            onClick={() => setConfirmingReset(true)}
+            className="rounded-lg bg-ng/80 px-4 py-2 text-sm font-bold text-white"
+          >
+            全リセットする
+          </button>
+        ) : (
+          <div className="rounded-lg bg-ng/10 p-3">
+            <p className="mb-3 text-sm font-bold text-red-300">
+              本当にすべての読み取り履歴と通過人数をリセットしますか？
+              <br />
+              この操作は元に戻せません。
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={handleFullReset}
+                disabled={resetting}
+                className="rounded-lg bg-ng px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+              >
+                {resetting ? 'リセット中...' : 'はい、リセットする'}
+              </button>
+              <button
+                onClick={() => setConfirmingReset(false)}
+                disabled={resetting}
+                className="rounded-lg bg-white/10 px-4 py-2 text-sm font-bold disabled:opacity-50"
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        )}
+
+        {resetError && (
+          <p className="mt-3 text-sm text-red-400">{resetError}</p>
+        )}
+      </div>
 
       <div className="overflow-x-auto rounded-lg border border-white/10">
         <table className="w-full min-w-[640px] text-left text-sm">
