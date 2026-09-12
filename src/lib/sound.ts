@@ -17,17 +17,39 @@ function getAudioContext(): AudioContext | null {
 }
 
 /**
+ * PC画面に設置する「通知音を有効にする」ボタン用。
+ * ボタンのクリックという明確なユーザー操作の中で呼ぶことで、
+ * ブラウザの自動再生制限を確実に解除する。
+ * (「ページ内のどこかを1回クリック」という曖昧な案内だけでは、
+ *  実際にはクリックされないまま運用されるケースがあったため、
+ *  明示的なボタンで解決する)
+ */
+export function enableSound(): void {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+  if (ctx.state === 'suspended') {
+    void ctx.resume();
+  }
+}
+
+/**
+ * 通知音が実際に再生できる状態かどうかを返す。
+ * (ボタンのUI表示切り替え用)
+ */
+export function isSoundReady(): boolean {
+  return audioCtx !== null && audioCtx.state === 'running';
+}
+
+/**
  * ブラウザの自動再生制限により、ユーザー操作(クリック等)が一度もない状態では
  * 音声が再生されないことがある。ページ内のどこか1回のクリックをきっかけに
  * AudioContextを起動しておくことで、実際のスキャン時に確実に音が鳴るようにする。
+ * (「通知音を有効にする」ボタンを押し忘れた場合の保険として残している)
  */
 export function unlockAudioOnFirstInteraction(): () => void {
   if (typeof document === 'undefined') return () => {};
   const handler = () => {
-    const ctx = getAudioContext();
-    if (ctx && ctx.state === 'suspended') {
-      void ctx.resume();
-    }
+    enableSound();
   };
   document.addEventListener('click', handler, { once: true });
   return () => document.removeEventListener('click', handler);

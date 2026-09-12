@@ -5,7 +5,13 @@ import QrScanner from './QrScanner';
 import PassCounter from './PassCounter';
 import ScanLogPanel from './ScanLogPanel';
 import type { ScanResult } from '@/lib/checkDuplicate';
-import { playNgSound, playOkSound, unlockAudioOnFirstInteraction } from '@/lib/sound';
+import {
+  enableSound,
+  isSoundReady,
+  playNgSound,
+  playOkSound,
+  unlockAudioOnFirstInteraction,
+} from '@/lib/sound';
 import { keepScreenAwake } from '@/lib/wakeLock';
 
 const PLANNED_COUNT_STORAGE_KEY = 'livepocket_plannedCount';
@@ -24,6 +30,7 @@ export default function ScanScreen() {
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
   const [clearedAt, setClearedAt] = useState<Date | null>(null);
   const [plannedCount, setPlannedCount] = useState<number | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(false);
 
   useEffect(() => {
     setIsMobile(detectIsMobile());
@@ -52,10 +59,19 @@ export default function ScanScreen() {
   }, []);
 
   // PC画面でのみ通知音を使うため、初回クリックでAudioContextを解錠しておく
+  // (「通知音を有効にする」ボタンの押し忘れに備えた保険)
   useEffect(() => {
     if (isMobile !== false) return;
     return unlockAudioOnFirstInteraction();
   }, [isMobile]);
+
+  const handleEnableSound = useCallback(() => {
+    enableSound();
+    // resume()は非同期なので、少し待ってから状態を反映する
+    window.setTimeout(() => setSoundEnabled(isSoundReady()), 150);
+    // 有効化できたことが分かるよう、確認としてOK音を1回鳴らす
+    playOkSound();
+  }, []);
 
   // PC(母艦)画面が開いている間は、画面スリープ・スクリーンセイバーの作動を防止する
   useEffect(() => {
@@ -122,6 +138,19 @@ export default function ScanScreen() {
         </h1>
         {adminLink}
       </div>
+
+      <button
+        onClick={handleEnableSound}
+        className={
+          soundEnabled
+            ? 'mb-4 w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-gray-400'
+            : 'mb-4 w-full animate-pulse rounded-lg border-2 border-ok bg-ok/20 px-4 py-2 text-sm font-bold text-green-300'
+        }
+      >
+        {soundEnabled
+          ? '🔊 通知音: 有効です'
+          : '🔊 タップして通知音を有効にする(運用開始前に1回押してください)'}
+      </button>
 
       <div className="grid flex-1 grid-cols-[320px_1fr] gap-5">
         <div className="flex flex-col gap-4">
