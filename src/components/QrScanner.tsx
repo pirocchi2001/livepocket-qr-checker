@@ -28,9 +28,12 @@ type Html5QrcodeLike = {
 
 export default function QrScanner({
   onResult,
+  compact = false,
 }: {
   /** 判定確定のたびに呼ばれる(PC画面右側のスキャンログ表示などに利用) */
   onResult?: (result: ScanResult) => void;
+  /** PC画面用の縮小表示。カメラ映像を小さく、案内文を省略する。 */
+  compact?: boolean;
 }) {
   const [uiState, setUiState] = useState<UiState>({ kind: 'scanning' });
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -146,17 +149,19 @@ export default function QrScanner({
         <div
           id={READER_ELEMENT_ID}
           className="w-full overflow-hidden rounded-xl bg-black"
-          style={{ minHeight: 280 }}
+          style={{ minHeight: compact ? 140 : 280 }}
         />
 
         {uiState.kind === 'processing' && (
           <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/60">
-            <p className="text-sm text-gray-200">判定中...</p>
+            <p className={compact ? 'text-xs text-gray-200' : 'text-sm text-gray-200'}>
+              判定中...
+            </p>
           </div>
         )}
 
         {uiState.kind === 'result' && (
-          <ResultOverlay result={uiState.result} onConfirm={resumeScanning} />
+          <ResultOverlay result={uiState.result} onConfirm={resumeScanning} compact={compact} />
         )}
       </div>
 
@@ -166,9 +171,11 @@ export default function QrScanner({
         </p>
       )}
 
-      <p className="mt-4 text-center text-xs text-gray-400">
-        QRコードを枠内にかざしてください
-      </p>
+      {!compact && (
+        <p className="mt-4 text-center text-xs text-gray-400">
+          QRコードを枠内にかざしてください
+        </p>
+      )}
     </div>
   );
 }
