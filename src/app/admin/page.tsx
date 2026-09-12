@@ -87,7 +87,7 @@ export default function AdminPage() {
     setLoadingRecords(true);
     setLoadError(null);
     try {
-      const q = query(collection(db, 'scans'), orderBy('scannedAt', 'asc'));
+      const q = query(collection(db, 'scans'), orderBy('scannedAt', 'desc'));
       const snap = await getDocs(q);
       const list: ScanRecord[] = snap.docs.map((d) => {
         const data = d.data() as { scannedAt?: Timestamp; rawText?: string };
