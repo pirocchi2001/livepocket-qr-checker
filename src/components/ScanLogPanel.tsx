@@ -5,15 +5,6 @@ import { collection, limit, onSnapshot, orderBy, query, Timestamp } from 'fireba
 import { db } from '@/lib/firebase';
 import type { ScanResult } from '@/lib/checkDuplicate';
 
-// この端末で今まさに起きた重複/読み取りエラーの表示用(Firestoreには保存されないため、
-// 他端末とは共有されない・ページ再読み込みで消える一時的なもの)
-export type LocalLogEntry = {
-  id: string;
-  rawText: string;
-  time: Date;
-  status: 'duplicate' | 'invalid';
-};
-
 type DisplayEntry = {
   id: string;
   rawText: string;
@@ -44,9 +35,8 @@ const STATUS_CLASS: Record<ScanResult['status'], string> = {
 };
 
 /**
- * 通過済み(OK)の履歴だけはFirestoreに保存されているため、
- * ここをリアルタイム購読することで「全端末共有・保存され続ける」ログにする。
- * (重複/読み取りエラーはFirestoreに保存しない設計のため、こちらは各端末のローカル表示のみ)
+ * 通過済み(OK)の履歴。Firestoreの scans コレクションをリアルタイム購読し、
+ * 全端末共有・保存され続けるログにする。
  */
 function useSharedOkEntries(): DisplayEntry[] {
   const [entries, setEntries] = useState<DisplayEntry[]>([]);
@@ -72,7 +62,48 @@ function useSharedOkEntries(): DisplayEntry[] {
         setEntries(list);
       },
       (err) => {
-        console.error('scan log subscription failed:', err);
+        console.error('scan log (ok) subscription failed:', err);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  return entries;
+}
+
+/**
+ * 重複(NG)・読み取りエラーの発生記録。Firestoreの events コレクションをリアルタイム購読し、
+ * どの端末で発生したものでも、PC(母艦)画面でまとめて確認できるようにする。
+ */
+function useSharedEventEntries(): DisplayEntry[] {
+  const [entries, setEntries] = useState<DisplayEntry[]>([]);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'events'),
+      orderBy('createdAt', 'desc'),
+      limit(MAX_SHARED_ENTRIES)
+    );
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        const list: DisplayEntry[] = snap.docs.map((d) => {
+          const data = d.data() as {
+            type?: string;
+            rawText?: string;
+            createdAt?: Timestamp;
+          };
+          return {
+            id: d.id,
+            rawText: data.rawText ?? '',
+            time: data.createdAt ? data.createdAt.toDate() : new Date(0),
+            status: data.type === 'invalid' ? 'invalid' : 'duplicate',
+          };
+        });
+        setEntries(list);
+      },
+      (err) => {
+        console.error('scan log (events) subscription failed:', err);
       }
     );
     return () => unsubscribe();
@@ -82,19 +113,17 @@ function useSharedOkEntries(): DisplayEntry[] {
 }
 
 export default function ScanLogPanel({
-  localEntries,
   clearedAt,
   onClear,
 }: {
-  /** この端末での重複/読み取りエラーの一時的な表示分 */
-  localEntries: LocalLogEntry[];
   /** この日時より前のスキャンは表示しない(「表示をクリア」した基準時刻) */
   clearedAt: Date | null;
   onClear: () => void;
 }) {
-  const sharedEntries = useSharedOkEntries();
+  const okEntries = useSharedOkEntries();
+  const eventEntries = useSharedEventEntries();
 
-  const entries: DisplayEntry[] = [...sharedEntries, ...localEntries]
+  const entries: DisplayEntry[] = [...okEntries, ...eventEntries]
     .filter((e) => !clearedAt || e.time > clearedAt)
     .sort((a, b) => b.time.getTime() - a.time.getTime())
     .slice(0, MAX_SHARED_ENTRIES);
@@ -105,7 +134,7 @@ export default function ScanLogPanel({
         <div>
           <h2 className="text-sm font-bold">スキャンログ</h2>
           <p className="text-xs text-gray-500">
-            OK分は全端末で共有・保存されます(重複/エラーはこの端末のみの一時表示)
+            OK・NG・エラーすべて全端末で共有・保存されます
           </p>
         </div>
         <button

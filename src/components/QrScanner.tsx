@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { processScan, type ScanResult } from '@/lib/checkDuplicate';
+import { processScan, logEvent, type ScanResult } from '@/lib/checkDuplicate';
 import ResultOverlay from './ResultOverlay';
 
 const READER_ELEMENT_ID = 'qr-reader-region';
@@ -75,6 +75,8 @@ export default function QrScanner({
       console.error('processScan failed:', err);
       // 通信エラー等でも安全側に倒し、手動確認ロックにする
       result = { status: 'invalid', rawText: decodedText };
+      // PC画面での監視用に記録(失敗しても無視してよい)
+      void logEvent('invalid', decodedText);
     }
 
     setUiState({ kind: 'result', result });

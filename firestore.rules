@@ -49,6 +49,24 @@ service cloud.firestore {
       allow create, delete: if false;
     }
 
+    // 重複(duplicate)・読み取りエラー(invalid)の発生記録。
+    // PC(母艦)画面で全端末分をまとめて監視できるよう、誰でも新規作成できるが、
+    // 内容はごく限定的なフィールドのみ許可する。
+    match /events/{eventId} {
+      allow get: if true;
+      allow list: if request.auth != null
+                  || (request.query.limit != null && request.query.limit <= 300);
+
+      allow create: if request.resource.data.keys().hasOnly(['type', 'rawText', 'createdAt'])
+                    && request.resource.data.type in ['duplicate', 'invalid']
+                    && request.resource.data.rawText is string
+                    && request.resource.data.rawText.size() <= 2000
+                    && request.resource.data.createdAt == request.time;
+
+      allow update: if false;
+      allow delete: if request.auth != null;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

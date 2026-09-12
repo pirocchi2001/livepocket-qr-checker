@@ -1,4 +1,6 @@
 import {
+  addDoc,
+  collection,
   doc,
   getDoc,
   runTransaction,
@@ -16,6 +18,10 @@ const COLLECTION_NAME = 'scans';
 // 通過人数(全端末合計)を保持する単一ドキュメント。
 // 一覧取得(list)を使わずに済むよう、件数だけを別ドキュメントで集計する。
 const COUNTER_DOC_PATH = ['meta', 'counter'] as const;
+
+// 重複(duplicate)・読み取りエラー(invalid)の発生記録。
+// PC(母艦)画面で全端末分をまとめて監視できるよう、Firestoreに保存して共有する。
+const EVENTS_COLLECTION_NAME = 'events';
 
 export type ScanResult =
   // "livepocketを含むか"のチェックは廃止したため、通常はここに来ない。
@@ -39,6 +45,26 @@ type StoredScanData = {
  */
 export function hashCode(rawText: string): string {
   return SHA256(rawText).toString();
+}
+
+/**
+ * 重複(duplicate)・読み取りエラー(invalid)の発生をFirestoreに記録する。
+ * PC(母艦)画面のスキャンログにも表示されるよう、全端末で共有される形にしている。
+ * 記録自体が失敗しても判定結果には影響させない(ベストエフォート)。
+ */
+export async function logEvent(
+  type: 'duplicate' | 'invalid',
+  rawText: string
+): Promise<void> {
+  try {
+    await addDoc(collection(db, EVENTS_COLLECTION_NAME), {
+      type,
+      rawText: rawText.slice(0, 2000),
+      createdAt: serverTimestamp(),
+    });
+  } catch (err) {
+    console.error('logEvent failed:', err);
+  }
 }
 
 /**
@@ -79,6 +105,9 @@ export async function processScan(rawText: string): Promise<ScanResult> {
   });
 
   if (result.status === 'duplicate') {
+    // NG(重複)発生をFirestoreに記録(PC画面での全端末共有監視用)。
+    // 判定結果を待たせないよう、応答を待たずに実行する(失敗しても判定には影響しない)。
+    void logEvent('duplicate', rawText);
     return {
       status: 'duplicate',
       rawText,

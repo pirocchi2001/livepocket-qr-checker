@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import QrScanner from './QrScanner';
 import PassCounter from './PassCounter';
-import ScanLogPanel, { type LocalLogEntry } from './ScanLogPanel';
+import ScanLogPanel from './ScanLogPanel';
 import type { ScanResult } from '@/lib/checkDuplicate';
 import { playNgSound, playOkSound, unlockAudioOnFirstInteraction } from '@/lib/sound';
+import { keepScreenAwake } from '@/lib/wakeLock';
 
-const MAX_LOCAL_LOG_ENTRIES = 200;
 const PLANNED_COUNT_STORAGE_KEY = 'livepocket_plannedCount';
 
 /**
@@ -22,7 +22,6 @@ function detectIsMobile(): boolean {
 
 export default function ScanScreen() {
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
-  const [localLog, setLocalLog] = useState<LocalLogEntry[]>([]);
   const [clearedAt, setClearedAt] = useState<Date | null>(null);
   const [plannedCount, setPlannedCount] = useState<number | null>(null);
 
@@ -58,6 +57,12 @@ export default function ScanScreen() {
     return unlockAudioOnFirstInteraction();
   }, [isMobile]);
 
+  // PC(母艦)画面が開いている間は、画面スリープ・スクリーンセイバーの作動を防止する
+  useEffect(() => {
+    if (isMobile !== false) return;
+    return keepScreenAwake();
+  }, [isMobile]);
+
   const handleResult = useCallback(
     (result: ScanResult) => {
       // 通知音はPC画面のみ(スマホは受付担当者がすぐ側で操作するため不要)。
@@ -69,21 +74,8 @@ export default function ScanScreen() {
           playNgSound();
         }
       }
-
-      // 'ok'(通過)はFirestoreに保存され、全端末で共有されるログ側に表示されるため、
-      // ここでは重複/読み取りエラーのみをこの端末のローカル表示として記録する。
-      if (result.status === 'ok') return;
-      setLocalLog((prev) =>
-        [
-          {
-            id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-            rawText: result.rawText,
-            time: new Date(),
-            status: result.status,
-          },
-          ...prev,
-        ].slice(0, MAX_LOCAL_LOG_ENTRIES)
-      );
+      // OK/NG/エラーいずれもFirestoreに記録され、ScanLogPanel側のリアルタイム購読で
+      // 自動的に反映されるため、ここでのログ管理は不要になった。
     },
     [isMobile]
   );
@@ -91,7 +83,6 @@ export default function ScanScreen() {
   // ログ表示のクリア(Firestore上のデータは消さず、この画面上の表示だけを空にする)
   const handleClearLog = useCallback(() => {
     setClearedAt(new Date());
-    setLocalLog([]);
   }, []);
 
   // 端末種別を判定するまでは何も出し分けない(ちらつき防止)
@@ -159,11 +150,7 @@ export default function ScanScreen() {
           </div>
         </div>
 
-        <ScanLogPanel
-          localEntries={localLog}
-          clearedAt={clearedAt}
-          onClear={handleClearLog}
-        />
+        <ScanLogPanel clearedAt={clearedAt} onClear={handleClearLog} />
       </div>
     </main>
   );

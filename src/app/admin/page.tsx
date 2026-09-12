@@ -109,7 +109,7 @@ export default function AdminPage() {
   }, []);
 
   /**
-   * 読み取り履歴(scansコレクション全件)と通過人数カウンターを完全にリセットする。
+   * 読み取り履歴(scans・eventsコレクション全件)と通過人数カウンターを完全にリセットする。
    * テスト運用から本番運用に切り替える際などに使用する、管理者専用の破壊的操作。
    * 500件ずつバッチ削除する(Firestoreの1バッチあたりの書き込み上限のため)。
    */
@@ -117,12 +117,14 @@ export default function AdminPage() {
     setResetting(true);
     setResetError(null);
     try {
-      const snap = await getDocs(collection(db, 'scans'));
-      const docs = snap.docs;
-      for (let i = 0; i < docs.length; i += 500) {
-        const batch = writeBatch(db);
-        docs.slice(i, i + 500).forEach((d) => batch.delete(d.ref));
-        await batch.commit();
+      for (const collectionName of ['scans', 'events']) {
+        const snap = await getDocs(collection(db, collectionName));
+        const docs = snap.docs;
+        for (let i = 0; i < docs.length; i += 500) {
+          const batch = writeBatch(db);
+          docs.slice(i, i + 500).forEach((d) => batch.delete(d.ref));
+          await batch.commit();
+        }
       }
       await setDoc(doc(db, 'meta', 'counter'), { totalCount: 0 });
       setRecords([]);
@@ -263,7 +265,7 @@ export default function AdminPage() {
           全リセット(テスト運用 → 本番運用の切り替え時など)
         </h2>
         <p className="mb-3 text-xs text-gray-400">
-          読み取り履歴(重複チェックの記録)と通過人数カウンターを完全に削除します。この操作は取り消せません。
+          読み取り履歴・NG(重複)/エラー記録・通過人数カウンターを完全に削除します。この操作は取り消せません。
         </p>
 
         {!confirmingReset ? (
