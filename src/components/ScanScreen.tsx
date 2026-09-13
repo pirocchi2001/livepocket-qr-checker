@@ -113,10 +113,7 @@ export default function ScanScreen() {
   // PC: 左上に大きな通過人数(牽制用)、左下に縮小カメラ、右にスキャンログを表示
   return (
     <main className="mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-lg font-bold tracking-wide">
-          LivePocket QR重複チェック
-        </h1>
+      <div className="mb-4 flex items-center justify-end">
         {adminLink}
       </div>
 
