@@ -4,11 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import QrScanner from './QrScanner';
 import PassCounter from './PassCounter';
 import ScanLogPanel from './ScanLogPanel';
-import type { ScanResult } from '@/lib/checkDuplicate';
 import {
   enableSound,
   isSoundReady,
-  playNgSound,
   playOkSound,
   unlockAudioOnFirstInteraction,
 } from '@/lib/sound';
@@ -79,23 +77,6 @@ export default function ScanScreen() {
     return keepScreenAwake();
   }, [isMobile]);
 
-  const handleResult = useCallback(
-    (result: ScanResult) => {
-      // 通知音はPC画面のみ(スマホは受付担当者がすぐ側で操作するため不要)。
-      // OKは控えめな音、NG(重複)・読み取りエラーは大きめの警告音。
-      if (isMobile === false) {
-        if (result.status === 'ok') {
-          playOkSound();
-        } else {
-          playNgSound();
-        }
-      }
-      // OK/NG/エラーいずれもFirestoreに記録され、ScanLogPanel側のリアルタイム購読で
-      // 自動的に反映されるため、ここでのログ管理は不要になった。
-    },
-    [isMobile]
-  );
-
   // ログ表示のクリア(Firestore上のデータは消さず、この画面上の表示だけを空にする)
   const handleClearLog = useCallback(() => {
     setClearedAt(new Date());
@@ -123,7 +104,7 @@ export default function ScanScreen() {
           LivePocket QR重複チェック
         </h1>
         <PassCounter />
-        <QrScanner onResult={handleResult} />
+        <QrScanner />
         <div className="mt-6">{adminLink}</div>
       </main>
     );
@@ -175,7 +156,7 @@ export default function ScanScreen() {
             <p className="mb-2 whitespace-nowrap text-xs text-gray-500">
               カメラ(補助・縮小表示)
             </p>
-            <QrScanner onResult={handleResult} compact />
+            <QrScanner compact />
           </div>
         </div>
 

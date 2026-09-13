@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { collection, limit, onSnapshot, orderBy, query, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { ScanResult } from '@/lib/checkDuplicate';
+import { playNgSound, playOkSound } from '@/lib/sound';
 
 type DisplayEntry = {
   id: string;
@@ -37,9 +38,12 @@ const STATUS_CLASS: Record<ScanResult['status'], string> = {
 /**
  * 通過済み(OK)の履歴。Firestoreの scans コレクションをリアルタイム購読し、
  * 全端末共有・保存され続けるログにする。
+ * どの端末で発生したものでも、新しく追加された瞬間に通知音を鳴らす
+ * (ページ読み込み直後の初回スナップショットでは鳴らさない)。
  */
 function useSharedOkEntries(): DisplayEntry[] {
   const [entries, setEntries] = useState<DisplayEntry[]>([]);
+  const isFirstSnapshot = useRef(true);
 
   useEffect(() => {
     const q = query(
@@ -50,6 +54,12 @@ function useSharedOkEntries(): DisplayEntry[] {
     const unsubscribe = onSnapshot(
       q,
       (snap) => {
+        if (!isFirstSnapshot.current) {
+          const hasNew = snap.docChanges().some((c) => c.type === 'added');
+          if (hasNew) playOkSound();
+        }
+        isFirstSnapshot.current = false;
+
         const list: DisplayEntry[] = snap.docs.map((d) => {
           const data = d.data() as { scannedAt?: Timestamp; rawText?: string };
           return {
@@ -74,9 +84,12 @@ function useSharedOkEntries(): DisplayEntry[] {
 /**
  * 重複(NG)・読み取りエラーの発生記録。Firestoreの events コレクションをリアルタイム購読し、
  * どの端末で発生したものでも、PC(母艦)画面でまとめて確認できるようにする。
+ * 新しく追加された瞬間に、大きめの警告音を鳴らす
+ * (ページ読み込み直後の初回スナップショットでは鳴らさない)。
  */
 function useSharedEventEntries(): DisplayEntry[] {
   const [entries, setEntries] = useState<DisplayEntry[]>([]);
+  const isFirstSnapshot = useRef(true);
 
   useEffect(() => {
     const q = query(
@@ -87,6 +100,12 @@ function useSharedEventEntries(): DisplayEntry[] {
     const unsubscribe = onSnapshot(
       q,
       (snap) => {
+        if (!isFirstSnapshot.current) {
+          const hasNew = snap.docChanges().some((c) => c.type === 'added');
+          if (hasNew) playNgSound();
+        }
+        isFirstSnapshot.current = false;
+
         const list: DisplayEntry[] = snap.docs.map((d) => {
           const data = d.data() as {
             type?: string;
